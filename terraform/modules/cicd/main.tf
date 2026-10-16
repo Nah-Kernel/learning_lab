@@ -184,6 +184,23 @@ resource "aws_codebuild_project" "backend" {
       name  = "SERVICE"
       value = local.service_name
     }
+
+    # Test chạy trước docker build; lỗi thì dừng, không push, không deploy.
+    # Image lấy từ ECR Public để tránh giới hạn pull của Docker Hub trên IP dùng chung của CodeBuild.
+    environment_variable {
+      name  = "TEST_COMMAND"
+      value = var.backend_test_command == null ? "skip" : var.backend_test_command
+    }
+
+    environment_variable {
+      name  = "TEST_DB_IMAGE"
+      value = "public.ecr.aws/docker/library/postgres:17"
+    }
+
+    environment_variable {
+      name  = "TEST_RUST_IMAGE"
+      value = "public.ecr.aws/docker/library/rust:latest"
+    }
   }
 
   artifacts {
@@ -217,6 +234,16 @@ locals {
             if aws ecr describe-images --repository-name "$${REPOSITORY_URL#*/}" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
               echo "Image $TAG da co (tag IMMUTABLE) - bo qua build"
             else
+              set -e
+              if [ "$TEST_COMMAND" != "skip" ]; then
+                docker network create ci
+                docker run -d --name ci-db --network ci -e POSTGRES_USER=ci -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=ci "$TEST_DB_IMAGE"
+                for i in $(seq 1 30); do docker exec ci-db pg_isready -U ci -d ci && break; sleep 2; done
+                docker run --rm --network ci -v "$CODEBUILD_SRC_DIR/$BACKEND_DIR":/src -w /src \
+                  -e DATABASE_URL=postgres://ci:ci@ci-db:5432/ci -e SECRET=ci-secret -e ADMIN_ROUTE=admin -e URL=127.0.0.1:3000 \
+                  "$TEST_RUST_IMAGE" sh -c "$TEST_COMMAND"
+                rm -rf "$BACKEND_DIR/target"
+              fi
               docker build -t "$IMAGE" -f "$BACKEND_DIR/$DOCKERFILE" "$BACKEND_DIR"
               docker push "$IMAGE"
             fi
@@ -267,5 +294,24 @@ resource "aws_codebuild_webhook" "this" {
       type    = "FILE_PATH"
       pattern = "^${each.value.dir}/"
     }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Build lỗi -> SNS topic alerts (email). Không có rule này thì build fail chỉ thấy trong Console.
+# ---------------------------------------------------------------------------
+resource "aws_codestarnotifications_notification_rule" "build_failed" {
+  for_each = var.alert_topic_arn == null ? {} : {
+    frontend = aws_codebuild_project.frontend.arn
+    backend  = aws_codebuild_project.backend.arn
+  }
+
+  name           = "${var.project_name}-${each.key}-build-failed"
+  resource       = each.value
+  detail_type    = "BASIC"
+  event_type_ids = ["codebuild-project-build-state-failed"]
+
+  target {
+    address = var.alert_topic_arn
   }
 }

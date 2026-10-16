@@ -25,7 +25,7 @@ locals {
       actions = ["logs:CreateLogStream", "logs:PutLogEvents"]
     }
     connection = {
-      actions   = ["codeconnections:UseConnection", "codeconnections:GetConnectionToken", "codestar-connections:UseConnection", "codestar-connections:GetConnectionToken"]
+      actions   = ["codeconnections:UseConnection", "codeconnections:GetConnection", "codeconnections:GetConnectionToken", "codestar-connections:UseConnection", "codestar-connections:GetConnection", "codestar-connections:GetConnectionToken"]
       resources = [aws_codeconnections_connection.github.arn]
     }
   }

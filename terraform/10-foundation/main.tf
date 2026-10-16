@@ -43,6 +43,8 @@ module "observability" {
 
   project_name = var.project_name
   alert_emails = var.alert_emails
+
+  allow_codestar_notifications_publish = var.github_repo_url != null
 }
 
 # Vỏ secret của app + giá trị X-Origin-Verify. Giá trị secret của app đặt sau bằng
@@ -129,4 +131,5 @@ module "cicd" {
   frontend_bucket_name = module.s3.frontend_bucket_id
   frontend_bucket_arn  = module.s3.frontend_bucket_arn
   pass_role_arns       = [module.security.task_execution_role_arn, module.security.task_role_arn]
+  alert_topic_arn      = module.observability.alerts_topic_arn
 }

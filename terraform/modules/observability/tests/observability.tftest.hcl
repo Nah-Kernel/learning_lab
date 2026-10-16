@@ -125,3 +125,20 @@ run "rejects_invalid_email" {
 
   expect_failures = [var.alert_emails]
 }
+
+run "codestar_notifications_publish_when_enabled" {
+  command = apply
+
+  variables {
+    allow_codestar_notifications_publish = true
+  }
+
+  assert {
+    condition = contains(flatten([
+      for s in data.aws_iam_policy_document.alerts_topic.statement : [
+        for p in s.principals : p.identifiers
+      ] if s.sid == "ServicesPublishFromThisAccount"
+    ]), "codestar-notifications.amazonaws.com")
+    error_message = "Bật allow_codestar_notifications_publish thì CodeStar Notifications được publish (báo build lỗi)."
+  }
+}

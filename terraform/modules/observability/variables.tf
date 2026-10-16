@@ -28,3 +28,9 @@ variable "allow_budgets_publish" {
   type        = bool
   default     = true
 }
+
+variable "allow_codestar_notifications_publish" {
+  description = "Cho phép CodeStar Notifications gửi vào topic (thông báo build CodeBuild lỗi). Bật khi có module cicd."
+  type        = bool
+  default     = false
+}

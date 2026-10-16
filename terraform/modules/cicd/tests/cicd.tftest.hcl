@@ -32,6 +32,16 @@ mock_provider "aws" {
   }
 
   override_resource {
+    target = aws_codebuild_project.frontend
+    values = { arn = "arn:aws:codebuild:ap-southeast-1:123456789012:project/stem-digitizer-frontend" }
+  }
+
+  override_resource {
+    target = aws_codebuild_project.backend
+    values = { arn = "arn:aws:codebuild:ap-southeast-1:123456789012:project/stem-digitizer-backend" }
+  }
+
+  override_resource {
     target = aws_iam_role.frontend
     values = { arn = "arn:aws:iam::123456789012:role/stem-digitizer-codebuild-frontend" }
   }
@@ -84,6 +94,20 @@ run "builds_match_spec" {
   }
 }
 
+run "backend_tests_gate_the_image" {
+  command = plan
+
+  assert {
+    condition     = can(regex("(?s)set -e.*TEST_COMMAND.*docker build", aws_codebuild_project.backend.source[0].buildspec))
+    error_message = "Test backend phải chạy trước docker build, lỗi là dừng (set -e)."
+  }
+
+  assert {
+    condition     = strcontains(one([for e in aws_codebuild_project.backend.environment[0].environment_variable : e.value if e.name == "TEST_COMMAND"]), "--test-threads=1")
+    error_message = "Test của app dùng chung cổng 3000 nên phải chạy tuần tự."
+  }
+}
+
 run "webhooks_filter_by_folder" {
   command = plan
 
@@ -99,6 +123,24 @@ run "webhooks_filter_by_folder" {
   assert {
     condition     = flatten([for g in aws_codebuild_webhook.this["frontend"].filter_group : [for f in g.filter : f.pattern if f.type == "FILE_PATH"]]) == ["^app/"]
     error_message = "Webhook frontend chỉ chạy khi thư mục app/ đổi."
+  }
+}
+
+run "notifies_build_failures_when_topic_given" {
+  command = plan
+
+  variables {
+    alert_topic_arn = "arn:aws:sns:ap-southeast-1:123456789012:stem-digitizer-alerts"
+  }
+
+  assert {
+    condition     = length(aws_codestarnotifications_notification_rule.build_failed) == 2
+    error_message = "Có topic thì mỗi project một rule báo build lỗi."
+  }
+
+  assert {
+    condition     = aws_codestarnotifications_notification_rule.build_failed["backend"].event_type_ids == toset(["codebuild-project-build-state-failed"])
+    error_message = "Chỉ báo khi build lỗi, không báo mọi lần build."
   }
 }
 

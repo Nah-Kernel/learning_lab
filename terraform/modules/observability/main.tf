@@ -24,7 +24,7 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = each.value
 }
 
-# Policy của topic: chủ account quản lý; CloudWatch và Budgets chỉ được Publish,
+# Policy của topic: chủ account quản lý; CloudWatch, Budgets (và CodeStar Notifications khi bật) chỉ được Publish,
 # và chỉ khi yêu cầu đến từ chính account này (chống account khác đẩy tin vào).
 data "aws_iam_policy_document" "alerts_topic" {
   statement {
@@ -56,6 +56,7 @@ data "aws_iam_policy_document" "alerts_topic" {
       identifiers = concat(
         ["cloudwatch.amazonaws.com"],
         var.allow_budgets_publish ? ["budgets.amazonaws.com"] : [],
+        var.allow_codestar_notifications_publish ? ["codestar-notifications.amazonaws.com"] : [],
       )
     }
 

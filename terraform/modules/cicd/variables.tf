@@ -96,3 +96,15 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "alert_topic_arn" {
+  description = "SNS topic nhận thông báo build lỗi. null = không tạo notification rule. Topic phải cho codestar-notifications.amazonaws.com publish."
+  type        = string
+  default     = null
+}
+
+variable "backend_test_command" {
+  description = "Lệnh test backend chạy trong container Rust (có Postgres) trước docker build. Test của app mỗi test tự khởi động server ở cổng 3000 nên phải chạy tuần tự. null = bỏ qua test."
+  type        = string
+  default     = "cargo test --locked --test api -- --test-threads=1"
+}

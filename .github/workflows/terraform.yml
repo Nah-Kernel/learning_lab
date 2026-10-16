@@ -1,0 +1,64 @@
+name: Terraform - fmt, validate, test
+
+# Kiểm tra code hạ tầng mỗi khi thư mục terraform/ đổi. Chạy offline bằng mock provider:
+# không cần credential AWS, không tạo resource, không tốn tiền.
+
+on:
+  push:
+    paths: ["terraform/**", ".github/workflows/terraform.yml"]
+  pull_request:
+    paths: ["terraform/**", ".github/workflows/terraform.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    name: terraform fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.2"
+      - run: terraform fmt -check -recursive -diff terraform
+
+  test:
+    name: test ${{ matrix.dir }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - 00-bootstrap
+          - 10-foundation
+          - 20-runtime
+          - 30-edge
+          - modules/alb
+          - modules/budgets
+          - modules/cdn
+          - modules/cicd
+          - modules/database
+          - modules/dns
+          - modules/ecr
+          - modules/ecs
+          - modules/healthcheck
+          - modules/nat
+          - modules/network
+          - modules/observability
+          - modules/s3
+          - modules/secrets
+          - modules/security
+          - modules/ses
+          - modules/waf
+    defaults:
+      run:
+        working-directory: terraform/${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.2"
+          terraform_wrapper: false
+      - run: terraform init -backend=false -input=false
+      - run: terraform test
